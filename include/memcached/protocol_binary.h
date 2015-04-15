@@ -172,6 +172,10 @@ extern "C"
         PROTOCOL_BINARY_CMD_TAP_CHECKPOINT_END = 0x47,
         /* End TAP */
 
+        /* Vbucket command to get the VBUCKET sequence numbers for all
+         * vbuckets on the node */
+        PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS = 0x48,
+
         /* DCP */
         PROTOCOL_BINARY_CMD_DCP_OPEN = 0x50,
         PROTOCOL_BINARY_CMD_DCP_ADD_STREAM = 0x51,
@@ -1347,6 +1351,117 @@ extern "C"
 #define OBS_STATE_PERSISTED     0x01
 #define OBS_STATE_NOT_FOUND     0x80
 #define OBS_STATE_LOGICAL_DEL   0x81
+
+    /**
+     * The physical layout for the PROTOCOL_BINARY_CMD_AUDIT_PUT
+     */
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint32_t id;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 4];
+    } protocol_binary_request_audit_put;
+
+    typedef protocol_binary_response_no_extras protocol_binary_response_audit_put;
+
+    /**
+     * The PROTOCOL_BINARY_CMD_OBSERVE_SEQNO command is used by the
+     * client to retrieve information about the vbucket in order to
+     * find out if a particular mutation has been persisted or
+     * replicated at the server side. In order to do so, the client
+     * would pass the vbucket uuid of the vbucket that it wishes to
+     * observe to the serve.  The response would contain the last
+     * persisted sequence number and the latest sequence number in the
+     * vbucket. For example, if a client sends a request to observe
+     * the vbucket 0 with uuid 12345 and if the response contains the
+     * values <58, 65> and then the client can infer that sequence
+     * number 56 has been persisted, 60 has only been replicated and
+     * not been persisted yet and 68 has not been replicated yet.
+     */
+
+    /**
+     * Definition of the request packet for the observe_seqno command.
+     *
+     * Header: Contains the vbucket id of the vbucket that the client
+     *         wants to observe.
+     *
+     * Body: Contains the vbucket uuid of the vbucket that the client
+     *       wants to observe. The vbucket uuid is of type uint64_t.
+     *
+     */
+    typedef union {
+        struct {
+            protocol_binary_request_header header;
+            struct {
+                uint64_t uuid;
+            } body;
+        } message;
+        uint8_t bytes[sizeof(protocol_binary_request_header) + 8];
+    } protocol_binary_request_observe_seqno;
+
+    /**
+     * Definition of the response packet for the observe_seqno command.
+     * Body: Contains a tuple of the form
+     *       <format_type, vbucket id, vbucket uuid, last_persisted_seqno, current_seqno>
+     *
+     *       - format_type is of type uint8_t and it describes whether
+     *         the vbucket has failed over or not. 1 indicates a hard
+     *         failover, 0 indicates otherwise.
+     *       - vbucket id is of type uint16_t and it is the identifier for
+     *         the vbucket.
+     *       - vbucket uuid is of type uint64_t and it represents a UUID for
+     *          the vbucket.
+     *       - last_persisted_seqno is of type uint64_t and it is the
+     *         last sequence number that was persisted for this
+     *         vbucket.
+     *       - current_seqno is of the type uint64_t and it is the
+     *         sequence number of the latest mutation in the vbucket.
+     *
+     *       In the case of a hard failover, the tuple is of the form
+     *       <format_type, vbucket id, vbucket uuid, last_persisted_seqno, current_seqno,
+     *       old vbucket uuid, last_received_seqno>
+     *
+     *       - old vbucket uuid is of type uint64_t and it is the
+     *         vbucket UUID of the vbucket prior to the hard failover.
+     *
+     *       - last_received_seqno is of type uint64_t and it is the
+     *         last received sequence number in the old vbucket uuid.
+     *
+     *       The other fields are the same as that mentioned in the normal case.
+     */
+    typedef protocol_binary_response_no_extras protocol_binary_response_observe_seqno;
+
+    /**
+     * Definition of the payload in the PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS
+     * request.
+     *
+     * This is a message with vbucketid, extras, key and value set to 0
+     */
+    typedef protocol_binary_request_no_extras protocol_binary_request_get_all_vb_seqnos;
+
+    /**
+     * Definition of the payload in the PROTOCOL_BINARY_CMD_GET_ALL_VB_SEQNOS
+     * response.
+     *
+     * The body contains a "list" of "vbucket id - seqno pairs" for all
+     * active and replica buckets on the node in network byte order.
+     *
+     *
+     *    Byte/     0       |       1       |       2       |       3       |
+     *       /              |               |               |               |
+     *      |0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|0 1 2 3 4 5 6 7|
+     *      +---------------+---------------+---------------+---------------+
+     *     0| VBID          | VBID          | SEQNO         | SEQNO         |
+     *      +---------------+---------------+---------------+---------------+
+     *     4| SEQNO         | SEQNO         | SEQNO         | SEQNO         |
+     *      +---------------+---------------+---------------+---------------+
+     *     4| SEQNO         | SEQNO         |
+     *      +---------------+---------------+
+     */
+    typedef protocol_binary_response_no_extras protocol_binary_response_get_all_vb_seqnos;
 
     /**
      * @}
